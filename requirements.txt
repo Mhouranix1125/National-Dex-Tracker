@@ -1,0 +1,4 @@
+customtkinter>=5.2.2
+pillow>=11.3.0
+requests>=2.32.0
+pyobjc-framework-Cocoa>=11.0; sys_platform == "darwin"

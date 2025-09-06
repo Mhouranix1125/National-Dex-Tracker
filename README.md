@@ -21,10 +21,10 @@
 
 - **National & Regional Dex**: Kanto → Paldea + National view.
 - **Normal / Shiny modes**: Track both with one toggle.
-- **Quick Search**: Jump to any Pokémon with `Ctrl/⌘ + F` (by name or #).
+- **Quick Search**: Jump to any Pokémon with `Ctrl + F` (by name or #).
 - **One‑click capture**: Per-entry checkbox with persistent save file (JSON).
 - **Filter views**: All / Captured / Missing — per mode.
-- **CSV export**: Export the current region or visible list.
+- **CSV export**: Export the current region or current page.
 - **Lazy sprite loading**: Fetches only what’s in view; caches images.
 - **Offline‑friendly names**: Built‑in fallback names for Kanto; on‑demand refresh from PokéAPI (`Ctrl/⌘ + R`).
 - **Smooth scrolling**: Mouse & trackpad scroll on hover (Windows/macOS/Linux).
@@ -47,6 +47,8 @@ cd <your-repo>
 ```
 
 ### 2) Create a virtual environment (recommended)
+Using a virtual environment ensures clean dependency management for the modular project structure.
+
 ```bash
 # Windows (PowerShell)
 py -m venv .venv
@@ -58,11 +60,11 @@ source .venv/bin/activate
 ```
 
 ### 3) Install dependencies
-Create or edit `requirements.txt` (or use the one in this repo):
+The project includes a `requirements.txt` file with the following dependencies:
 
 ```txt
 customtkinter>=5.2.2
-pillow>=10.3.0
+pillow>=11.3.0
 requests>=2.32.0
 ```
 
@@ -81,10 +83,10 @@ Run the app:
 
 ```bash
 # Windows
-py pokemon_tracker.py
+py main.py
 
 # macOS / Linux
-python3 pokemon_tracker.py
+python3 main.py
 ```
 
 **Basics**
@@ -92,7 +94,7 @@ python3 pokemon_tracker.py
 - Toggle **Normal/Shiny** to switch mode.
 - Use **checkboxes** to mark captured.
 - Use the **Filter** (All / Captured / Missing) to focus your list.
-- Click **Download CSV** to export progress for the current view.
+- Click **Download CSV** and choose to export the current region or the current page.
 
 **Names & Sprites**
 - Names come from local cache and PokéAPI (on demand).
@@ -101,14 +103,20 @@ python3 pokemon_tracker.py
 **Save file**
 - Capture state is persisted to a JSON file alongside the script by default.
 
+**Legacy Support**  
+- The original single-file `pokemon_tracker.py` remains available for backward compatibility.
+- Both versions use the same data files, so you can switch between them seamlessly.
+
 ---
 
 ## ⌨️ Keyboard Shortcuts
 
-- **Search**: `Ctrl + F` (Windows/Linux) • `⌘ + F` (macOS)  
-  Search by **name** (case‑insensitive) or **#ID**; jumps to the entry.
-- **Refresh names**: `Ctrl + R` • `⌘ + R`  
-  Pull the latest names/slugs from PokéAPI and cache them for next run.
+- **Search**: `Ctrl + F`  
+  Search by **name** (case‑insensitive) or **#ID**; jumps to the entry.  
+  macOS note: use the Control key (not Command).
+- **Refresh names**: `Ctrl + R`  
+  Pull the latest names/slugs from PokéAPI and cache them for next run.  
+  macOS note: use the Control key (not Command).
 
 ---
 
@@ -123,9 +131,9 @@ python3 pokemon_tracker.py
 - Keep concurrent loads low (e.g., 4–6) and update image widgets via `root.after(...)` to avoid thread‑UI conflicts.
 - Prioritize visible items only; defer offscreen work.
 
-### “Trackpad scrolling doesn’t work”
-- Windows/macOS use `<MouseWheel>`; Linux often needs `<Button-4/5>`.
-- This app binds both while you **hover** the scrollable area.
+### "Trackpad scrolling doesn't work"
+- The app currently binds `<MouseWheel>`; on some Linux setups you may need `<Button-4/5>`.
+- If needed, add additional bindings in `main_app.py` where the scroll handler is attached in the `_create_main_area()` method.
 
 ### “Checkbox isn’t visible on dark cards”
 - Ensure checkbox text/fg colors contrast against the card background.
@@ -134,52 +142,60 @@ python3 pokemon_tracker.py
 
 ## 🗂 Project Structure
 
-**Single‑file (default)**
+> **🎉 Recently Refactored!** This project was successfully refactored from a single 956-line file into a clean, modular architecture following modern Python best practices.
+
+**Current modular structure**:
 ```
-pokemon_tracker.py
-requirements.txt
-assets/
-  banner.png        # optional
-  screenshot-1.png  # optional
-  screenshot-2.png  # optional
+main.py                    # Main entry point with keyboard shortcuts
+main_app.py               # PokemonTracker main application class
+models.py                 # Pokemon dataclass, enums (Mode, Region, ViewFilter)
+database.py               # Names/slugs cache, PokéAPI interactions, fallbacks
+managers.py               # LazyLoadSpriteManager and DataManager
+dialogs.py                # Quick search dialog
+constants.py              # Application constants and configuration
+requirements.txt          # Dependencies
+pokemon_tracker.py        # Legacy single-file version (still functional)
+pokemon_names_cache.json  # Cached Pokemon names from PokéAPI
+pokemon_tracker_data.json # Saved capture progress
 ```
 
-**Suggested modular layout** (for contributors/tests):
-```
-pokedext/
-  __init__.py
-  app.py                # Tk root wiring (main entry)
-  tracker.py            # UI logic (events, state)
-  models.py             # Pokemon dataclass, enums (Mode, Region), filters
-  database.py           # Names/slugs cache, PokéAPI refresh, fallbacks
-  sprites.py            # Lazy sprite loader (queue, cache, concurrency)
-  dataio.py             # Save/load JSON, CSV export
-  ui/
-    header.py           # Title, progress bar/label
-    controls.py         # Mode/filter/region controls, CSV button
-    grid.py             # Scrollable list + card creation
-    dialogs.py          # Quick search dialog
-assets/
-  placeholder.png
-pokemon_tracker.py      # thin wrapper (if desired)
-requirements.txt
-```
+### Module Responsibilities
+
+- **`main.py`**: Entry point with keyboard shortcuts and app initialization
+- **`main_app.py`**: Main application UI logic, event handlers, and display management
+- **`models.py`**: Data models (Pokemon, Mode, Region, ViewFilter enums)
+- **`database.py`**: Pokemon name/slug management and PokéAPI integration
+- **`managers.py`**: Sprite loading/caching and data persistence
+- **`dialogs.py`**: UI dialogs (quick search)
+- **`constants.py`**: Centralized configuration and constants
+
+### Refactoring Benefits
+
+✅ **Maintainability** - Easy to locate and modify specific functionality  
+✅ **Testability** - Individual components can be unit tested  
+✅ **Reusability** - Components can be imported into other projects  
+✅ **Scalability** - Simple to extend without cluttering existing code  
+✅ **Collaboration** - Multiple developers can work on different modules  
+✅ **Debugging** - Easier to isolate and fix issues
 
 ---
 
 ## 🧭 Roadmap
 
+**Completed ✅**
 - ✅ Quick search (name/#) and on‑demand name refresh  
 - ✅ Normal/Shiny capture tracking  
 - ✅ CSV export
+- ✅ **Modular architecture** - Refactored from single 956-line file into clean, maintainable modules
+- ✅ **Modern Python structure** - Proper separation of concerns, type hints, and documentation
 
-**Planned**
+**Planned 🚀**
 - [ ] Improved regional‑form artwork resolution (`-alola`, `-galar`, `-hisui`) with caching
 - [ ] Bulk import/export of capture state
 - [ ] Theme switcher (dark/light)
 - [ ] Configurable data path (e.g., `~/.pokedext/`)
 - [ ] Unit tests for models/data/sprites
-- [ ] Modularize repo (see structure above)
+- [ ] Package for easier distribution (PyPI/executable)
 
 ---
 

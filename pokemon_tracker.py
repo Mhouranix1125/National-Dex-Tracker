@@ -18,6 +18,10 @@ import time
 # NEW
 import requests
 
+# Persistent HTTP session for API calls
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": "NationalDexTracker/1.0"})
+
 # ---------- Appearance ----------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -29,8 +33,8 @@ SPRITE_BASE_URL = "https://raw.githubusercontent.com/PokeAPI/sprites/master/spri
 DATA_FILE = "pokemon_tracker_data.json"
 NAMES_CACHE_FILE = "pokemon_names_cache.json"
 ITEMS_PER_PAGE = 50
-MAX_CONCURRENT_LOADS = 3
-SPRITE_LOAD_DELAY = 0.05
+MAX_CONCURRENT_LOADS = 6
+SPRITE_LOAD_DELAY = 0.0
 
 class Mode(Enum):
     NORMAL = "Normal"
@@ -130,7 +134,13 @@ class PokemonDatabase:
         19: ["Alolan"], 20: ["Alolan"], 26: ["Alolan"], 27: ["Alolan"], 28: ["Alolan"],
         37: ["Alolan"], 38: ["Alolan"], 50: ["Alolan"], 51: ["Alolan"], 
         52: ["Alolan", "Galarian"], 53: ["Alolan"], 74: ["Alolan"], 75: ["Alolan"], 
-        76: ["Alolan"], 88: ["Alolan"], 89: ["Alolan"], 103: ["Alolan"], 105: ["Alolan"]
+        76: ["Alolan"], 88: ["Alolan"], 89: ["Alolan"], 103: ["Alolan"], 105: ["Alolan"],
+        # Vivillon (id 666) forms tracked as variants (separate dex logic without UI changes)
+        666: [
+            "Meadow", "Polar", "Tundra", "Continental", "Garden", "Elegant", "Icy Snow",
+            "Modern", "Marine", "Archipelago", "High Plains", "Sandstorm", "River",
+            "Monsoon", "Savanna", "Sun", "Ocean", "Jungle", "Fancy", "Poké Ball"
+        ]
     }
 
     SPECIAL_NAME_FIXES = {
@@ -157,6 +167,27 @@ class PokemonDatabase:
         "Galarian": "galar",
         "Hisuian": "hisui",
         "Paldean": "paldea",
+        # Vivillon patterns (PokeAPI slugs)
+        "Meadow": "meadow",
+        "Polar": "polar",
+        "Tundra": "tundra",
+        "Continental": "continental",
+        "Garden": "garden",
+        "Elegant": "elegant",
+        "Icy Snow": "icy-snow",
+        "Modern": "modern",
+        "Marine": "marine",
+        "Archipelago": "archipelago",
+        "High Plains": "high-plains",
+        "Sandstorm": "sandstorm",
+        "River": "river",
+        "Monsoon": "monsoon",
+        "Savanna": "savanna",
+        "Sun": "sun",
+        "Ocean": "ocean",
+        "Jungle": "jungle",
+        "Fancy": "fancy",
+        "Poké Ball": "poke-ball",
     }
 
     @classmethod
@@ -191,7 +222,7 @@ class PokemonDatabase:
     def refresh_cache(cls, show_errors: bool = True):
         try:
             url = f"https://pokeapi.co/api/v2/pokemon?limit={TOTAL_POKEMON}"
-            resp = requests.get(url, timeout=15)
+            resp = SESSION.get(url, timeout=8)
             resp.raise_for_status()
             data = resp.json()
             results = data.get("results", [])
@@ -287,7 +318,7 @@ class LazyLoadSpriteManager:
         form_slug = f"{base_slug}-{suffix}"
         try:
             api_url = f"https://pokeapi.co/api/v2/pokemon/{form_slug}"
-            resp = requests.get(api_url, timeout=10)
+            resp = SESSION.get(api_url, timeout=5)
             resp.raise_for_status()
             j = resp.json()
             sprites = j.get("sprites", {}) or {}
@@ -359,7 +390,7 @@ class LazyLoadSpriteManager:
         try:
             time.sleep(SPRITE_LOAD_DELAY)
             url = self._resolve_sprite_url(pokemon, mode)
-            with urlopen(url, timeout=8) as response:
+            with urlopen(url, timeout=5) as response:
                 image_data = response.read()
             image = Image.open(io.BytesIO(image_data))
             image = image.resize(SPRITE_SIZE, Image.Resampling.LANCZOS)
@@ -890,9 +921,21 @@ def main():
     root = ctk.CTk()
 
     def refresh_names():
-        if messagebox.askyesno("Refresh Names", "Re-download all Pokémon names from PokéAPI?"):
-            PokemonDatabase.refresh_cache()
-            messagebox.showinfo("Success", "Names refreshed! Please restart the app for a full rebuild.")
+        if not messagebox.askyesno("Refresh Names", "Re-download all Pokémon names from PokéAPI?"):
+            return
+        def _do_refresh():
+            try:
+                PokemonDatabase.refresh_cache()
+                try:
+                    root.after(0, lambda: messagebox.showinfo("Success", "Names refreshed! Please restart the app for a full rebuild."))
+                except Exception:
+                    pass
+            except Exception as e:
+                try:
+                    root.after(0, lambda: messagebox.showwarning("Refresh Failed", f"Could not refresh names.\n\n{e}"))
+                except Exception:
+                    pass
+        threading.Thread(target=_do_refresh, daemon=True).start()
 
     def open_search():
         if hasattr(app, 'pokemon_list'):
